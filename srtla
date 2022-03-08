@@ -1,0 +1,68 @@
+#!/bin/bash
+
+set -e
+
+trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
+
+interface_ips() {
+	ip --json address | jq -r '.[].addr_info[] | 
+		select(.family == "inet" and .scope == "global" and 
+			(.label | startswith("docker") | not) 
+			and (.label | startswith("tailscale") | not)) | .local'
+}
+
+if [ "$SRTLA_MODE" != "send" ] && [ "$SRTLA_MODE" != "receive" ]; then
+	echo "Error: SRTLA_MODE= must be \`send' or \`receive'"
+	exit 1
+fi
+
+SRTLA_LISTEN_PORT="${SRTLA_LISTEN_PORT:-1940}"
+
+if [ "$SRTLA_MODE" = "send" ]; then
+	SRTLA_IP_CONFIG="${SRTLA_IP_CONFIG:-/config/interfaces}"
+
+	if [ -z "$SRTLA_SRTLA_HOST" ]; then
+		echo "Error: SRTLA_SRTLA_HOST= must be set"
+		exit 2
+	fi
+	
+	if [ -z "$SRTLA_SRTLA_PORT" ]; then
+		echo "Error: SRTLA_SRTLA_PORT= must be set"
+		exit 3
+	fi
+
+
+	interfaces="$(interface_ips)"
+	echo "Writing $SRTLA_IP_CONFIG with $(echo -n "$interfaces" | wc -l) interfaces"
+	echo "$interfaces" > "$SRTLA_IP_CONFIG"
+
+
+	echo "Starting SRTLA sender listening on $SRTLA_LISTEN_PORT to $SRTLA_SRTLA_HOST:$SRTLA_SRTLA_PORT via $SRTLA_IP_CONFIG"
+	/app/srtla_send "$SRTLA_LISTEN_PORT" "$SRTLA_SRTLA_HOST" "$SRTLA_SRTLA_PORT" "$SRTLA_IP_CONFIG" &
+	srtla_pid="$!"
+	
+	while true; do
+		sleep 1
+		polled_interfaces="$(interface_ips)"
+		if [ "$polled_interfaces" != "$interfaces" ]; then
+			echo "$polled_interfaces" > "$SRTLA_IP_CONFIG"
+			echo "Updating $SRTLA_IP_CONFIG with $(echo -n "$polled_interfaces" | wc -l) interfaces"
+			kill -HUP "$srtla_pid"
+			interfaces="$polled_interfaces"
+		fi
+	done
+else
+	if [ -z "$SRTLA_SRT_HOST" ]; then
+		echo "Error: SRTLA_SRT_HOST= must be set"
+		exit 2
+	fi
+	
+	if [ -z "$SRTLA_SRT_PORT" ]; then
+		echo "Error: SRTLA_SRT_PORT= must be set"
+		exit 3
+	fi
+
+	echo "Starting SRTLA receiver listening on $SRTLA_LISTEN_PORT to $SRTLA_SRT_HOST:$SRTLA_SRT_PORT"
+
+	/app/srtla_rec "$SRTLA_LISTEN_PORT" "$SRTLA_SRT_HOST" "$SRTLA_SRT_PORT"
+fi
