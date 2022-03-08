@@ -1,5 +1,7 @@
 # docker-srtla
 
+*NOTE:* This is a work in progress. There are no published docker images for this yet.
+
 Example `docker-compose.yml` to start the sender:
 
 ``` yaml
