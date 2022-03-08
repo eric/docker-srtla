@@ -15,7 +15,6 @@ services:
       - SRTLA_LISTEN_PORT=1940
       - SRTLA_SRTLA_HOST=10.0.0.1
       - SRTLA_SRTLA_PORT=1941
-
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /vols/srtla/config:/config
@@ -37,7 +36,6 @@ services:
       - SRTLA_LISTEN_PORT=1941
       - SRTLA_SRT_HOST=10.0.0.2
       - SRTLA_SRT_PORT=1935
-
     volumes:
       - /etc/localtime:/etc/localtime:ro
 ```
