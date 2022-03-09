@@ -4,11 +4,19 @@ set -e
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 
+# SRTLA_EXCLUDE_INTERFACES=
+# SRTLA_EXCLUDE_IPS=
+
 interface_ips() {
-	ip --json address | jq -r '.[].addr_info[] | 
-		select(.family == "inet" and .scope == "global" and 
-			(.label | startswith("docker") | not) 
-			and (.label | startswith("tailscale") | not)) | .local'
+	ip --json address | jq -r --arg excluded_interfaces "$SRTLA_EXCLUDE_INTERFACES" \
+		--arg excluded_ips "$SRTLA_EXCLUDE_IPS" \
+		'.[].addr_info[] |
+		select(.family == "inet" and .scope == "global") |
+		select([.label] | inside($excluded_interfaces | split(",")) | not) |
+		select([.local] | inside($excluded_ips | split(",")) | not) |
+		select((.label | startswith("docker") | not) and
+			(.label | startswith("tailscale") | not) and
+			(.local | startswith("169.254.") | not)) | .local'
 }
 
 if [ "$SRTLA_MODE" != "send" ] && [ "$SRTLA_MODE" != "receive" ]; then
@@ -33,7 +41,7 @@ if [ "$SRTLA_MODE" = "send" ]; then
 
 
 	interfaces="$(interface_ips)"
-	echo "Writing $SRTLA_IP_CONFIG with $(echo -n "$interfaces" | wc -l) interfaces"
+	echo "Writing $SRTLA_IP_CONFIG with $(echo -n "$interfaces" | wc -w) interfaces"
 	echo "$interfaces" > "$SRTLA_IP_CONFIG"
 
 
@@ -46,7 +54,7 @@ if [ "$SRTLA_MODE" = "send" ]; then
 		polled_interfaces="$(interface_ips)"
 		if [ "$polled_interfaces" != "$interfaces" ]; then
 			echo "$polled_interfaces" > "$SRTLA_IP_CONFIG"
-			echo "Updating $SRTLA_IP_CONFIG with $(echo -n "$polled_interfaces" | wc -l) interfaces"
+			echo "Updating $SRTLA_IP_CONFIG with $(echo -n "$polled_interfaces" | wc -w) interfaces"
 			kill -HUP "$srtla_pid"
 			interfaces="$polled_interfaces"
 		fi
