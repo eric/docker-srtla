@@ -8,7 +8,7 @@ Example `docker-compose.yml` to start the sender:
 version: '2'
 services:
   srtla-sender:
-    build: ../src/docker-srtla
+    build: https://github.com/eric/docker-srtla.git
     container_name: srtla-sender
     restart: always
     network_mode: host
@@ -28,7 +28,7 @@ and for the receiver:
 version: '2'
 services:
   srtla-receiver:
-    build: ../src/docker-srtla
+    build: https://github.com/eric/docker-srtla.git
     container_name: srtla-receive
     restart: always
     ports:
